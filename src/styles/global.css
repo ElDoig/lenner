@@ -26,10 +26,18 @@ a:focus-visible, button:focus-visible { outline: 2px solid #78acfa; outline-offs
 .hero-firstname { position: absolute; z-index: 1; left: calc(var(--gutter) - 4px); top: 152px; font-family: 'Barlow Condensed', sans-serif; font-size: clamp(105px, 32vw, 170px); line-height: .85; font-weight: 700; letter-spacing: -.025em; text-transform: uppercase; }
 .character { position: absolute; z-index: 2; width: 345px; height: 613px; top: 201px; left: 50%; transform: translateX(-50%); isolation: isolate; pointer-events: none; mask-image: linear-gradient(to bottom, black 62%, transparent 96%); }
 .character-image, .character-video { position: absolute; inset: 0; display: block; height: 100%; width: 100%; object-fit: contain; object-position: center top; }
-.character-image { transform: translate(-2.4%, 1.5%) scale(1.08); transform-origin: center top; transition: opacity .4s ease; }
-.character-video { background: #000; mix-blend-mode: lighten; opacity: 1; transition: opacity .45s ease; }
-.character-video.is-finished { opacity: 0; visibility: hidden; transition: opacity .45s ease, visibility 0s .45s; }
-.character-video.is-loading { opacity: 0; }
+.character-image { opacity: 0; visibility: hidden; transform: translate(-2.4%, 1.5%) scale(1.08); transform-origin: center top; transition: opacity .45s ease; }
+.character-video { background: #000; opacity: 0; visibility: hidden; filter: blur(16px); transform: scale(1.015); transform-origin: center; }
+.character[data-phase='videoReveal'] .character-video { visibility: visible; animation: character-emerge 650ms cubic-bezier(.22, 1, .36, 1) both; }
+.character[data-phase='videoPlaying'] .character-video { opacity: 1; visibility: visible; filter: blur(0); transform: scale(1); }
+.character[data-phase='transitionToPortrait'] .character-video { visibility: visible; filter: blur(0); transform: scale(1); animation: video-dissolve 450ms ease both; }
+@keyframes character-emerge { from { opacity: 0; filter: blur(16px); transform: scale(1.015); } to { opacity: 1; filter: blur(0); transform: scale(1); } }
+@keyframes video-dissolve { from { opacity: 1; } to { opacity: 0; } }
+.hero[data-intro-phase='loading'], .hero[data-intro-phase='videoReveal'], .hero[data-intro-phase='videoPlaying'] { background: #000; }
+.hero-intro .hero-header, .hero-intro .hero-baseline { opacity: 0; visibility: hidden; }
+.hero-header { transition: opacity .65s ease; }
+.hero[data-intro-phase='loading'] .hero-composition { visibility: hidden; }
+.hero[data-intro-phase='unavailable'] .character { visibility: hidden; }
 .portrait-veil { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 45%, #07101d77, #030405aa); opacity: 0; pointer-events: none; }.veil-transition { animation: portrait-dissolve .8s ease-out both; }
 @keyframes portrait-dissolve { 0% { opacity: 0; } 20% { opacity: .46; } 100% { opacity: 0; } }
 .hero-name { position: absolute; z-index: 3; left: var(--gutter); top: 61%; }

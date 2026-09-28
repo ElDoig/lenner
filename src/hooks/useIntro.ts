@@ -1,47 +1,119 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useReducedMotion } from 'framer-motion';
 
+export type IntroPhase = 'loading' | 'videoReveal' | 'videoPlaying' | 'transitionToPortrait' | 'portrait' | 'unavailable';
+
 export function useIntro() {
   const reduce = useReducedMotion();
   const videoRef = useRef<HTMLVideoElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
-  const [phase, setPhase] = useState<'loading' | 'playing' | 'holding' | 'complete'>('loading');
+  const phaseRef = useRef<IntroPhase>('loading');
+  const [phase, setPhase] = useState<IntroPhase>('loading');
   const [imageReady, setImageReady] = useState(false);
-  const done = useRef(false);
-  const holdTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const finish = useCallback(() => {
-    done.current = true;
-    setPhase('complete');
+  const [ended, setEnded] = useState(false);
+  const [waiting, setWaiting] = useState(false);
+  const playPending = useRef(false);
+  const frameRequest = useRef<number | undefined>(undefined);
+  const animationFrame = useRef<number | undefined>(undefined);
+
+  const changePhase = useCallback((next: IntroPhase) => {
+    phaseRef.current = next;
+    setPhase(next);
   }, []);
-  const hold = useCallback(() => {
-    if (done.current) return;
+  // Una salida anticipada nunca autoriza mostrar el retrato.
+  const skip = useCallback(() => {
+    changePhase('unavailable');
     videoRef.current?.pause();
-    setPhase('holding');
-    holdTimer.current = setTimeout(finish, 280);
-  }, [finish]);
-  useEffect(() => () => clearTimeout(holdTimer.current), []);
+  }, [changePhase]);
+
+  const play = useCallback(() => {
+    const video = videoRef.current;
+    if (reduce || phaseRef.current !== 'loading' || !video || video.readyState < 3 || playPending.current) return;
+    playPending.current = true;
+    video.muted = true;
+    // No se revela al resolver play(): esperamos playing y un frame presentado.
+    void video.play().catch(() => {
+      // Mantener negro; canplaythrough o un gesto podrán reintentar.
+    }).finally(() => { playPending.current = false; });
+  }, [reduce]);
+
+  const onPlaying = useCallback(() => {
+    setWaiting(false);
+    const video = videoRef.current;
+    if (!video || phaseRef.current !== 'loading' || frameRequest.current !== undefined || animationFrame.current !== undefined) return;
+    const reveal = () => {
+      frameRequest.current = undefined;
+      animationFrame.current = undefined;
+      if (phaseRef.current === 'loading' && !video.paused && video.readyState >= 2) changePhase('videoReveal');
+    };
+    if ('requestVideoFrameCallback' in video) frameRequest.current = video.requestVideoFrameCallback(reveal);
+    else animationFrame.current = requestAnimationFrame(reveal);
+  }, [changePhase]);
+
+  const onImageLoad = useCallback(() => {
+    const image = imageRef.current;
+    if (!image?.naturalWidth) return;
+    void image.decode().then(() => setImageReady(true)).catch(() => {
+      if (image.complete && image.naturalWidth) setImageReady(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (imageRef.current?.complete) onImageLoad();
+    if (reduce) { skip(); return; }
+    play();
+    const video = videoRef.current;
+    return () => {
+      if (frameRequest.current !== undefined) video?.cancelVideoFrameCallback(frameRequest.current);
+      if (animationFrame.current !== undefined) cancelAnimationFrame(animationFrame.current);
+      frameRequest.current = undefined;
+      animationFrame.current = undefined;
+    };
+  }, [reduce, skip, play, onImageLoad]);
+
   useEffect(() => {
     if (phase !== 'loading') return;
-    const loadingLimit = window.setTimeout(finish, 2800);
-    return () => window.clearTimeout(loadingLimit);
-  }, [phase, finish]);
-  const play = useCallback(() => {
-    if (done.current || reduce) return;
-    const promise = videoRef.current?.play();
-    promise?.catch(finish);
-  }, [finish, reduce]);
+    const timeout = window.setTimeout(skip, 7500);
+    window.addEventListener('pointerdown', play);
+    window.addEventListener('keydown', play);
+    return () => {
+      clearTimeout(timeout);
+      window.removeEventListener('pointerdown', play);
+      window.removeEventListener('keydown', play);
+    };
+  }, [phase, play, skip]);
+
   useEffect(() => {
-    if (imageRef.current?.complete && imageRef.current.naturalWidth) setImageReady(true);
-    if (reduce) { finish(); return; }
-    play();
-    // Una conexión lenta nunca bloquea el acceso a la presentación.
-    const fallback = window.setTimeout(finish, 7500);
-    return () => window.clearTimeout(fallback);
-  }, [reduce, finish, play]);
+    if (phase !== 'videoReveal') return;
+    const timer = window.setTimeout(() => changePhase('videoPlaying'), 650);
+    return () => clearTimeout(timer);
+  }, [phase, changePhase]);
+
   useEffect(() => {
-    if (phase !== 'complete') return;
-    const timer = window.setTimeout(() => videoRef.current?.pause(), 500);
-    return () => window.clearTimeout(timer);
-  }, [phase]);
-  return { videoRef, imageRef, phase, imageReady, setImageReady, finish, hold, play, reduce, onPlaying: () => { if (!done.current) setPhase('playing'); } };
+    if (!ended || !imageReady || (phase !== 'videoReveal' && phase !== 'videoPlaying')) return;
+    // Conservar el último frame antes de permitir la primera aparición del PNG.
+    const timer = window.setTimeout(() => changePhase('transitionToPortrait'), 280);
+    return () => clearTimeout(timer);
+  }, [ended, imageReady, phase, changePhase]);
+
+  useEffect(() => {
+    if (phase !== 'transitionToPortrait') return;
+    const timer = window.setTimeout(() => changePhase('portrait'), 450);
+    return () => clearTimeout(timer);
+  }, [phase, changePhase]);
+
+  useEffect(() => {
+    if ((!waiting && !(ended && !imageReady)) || (phase !== 'videoReveal' && phase !== 'videoPlaying')) return;
+    const timer = window.setTimeout(skip, 7500);
+    return () => clearTimeout(timer);
+  }, [waiting, ended, imageReady, phase, skip]);
+
+  const onEnded = useCallback(() => {
+    videoRef.current?.pause();
+    setWaiting(false);
+    setEnded(true);
+  }, []);
+  const showPortrait = ended && imageReady && (phase === 'transitionToPortrait' || phase === 'portrait');
+  const showContent = showPortrait || phase === 'unavailable';
+  return { videoRef, imageRef, phase, reduce, play, onPlaying, onEnded, onImageLoad, skip, showPortrait, showContent, onWaiting: () => setWaiting(true) };
 }

@@ -1,5 +1,5 @@
 // Todo el contenido profesional editable vive aquí. Sin cifras ni hitos no verificados.
-export const LINKEDIN_URL = ''; // Sustituir por la URL real https://www.linkedin.com/in/...
+export const LINKEDIN_URL = 'https://www.linkedin.com/in/lenner'; // Sustituir por la URL real https://www.linkedin.com/in/...
 export const profile = {
   firstName: 'Lenner', lastName: 'Amaya Esquivel', role: 'Gerente de Operaciones', company: 'Port Logistics',
   concept: 'Operaciones en movimiento', tagline: 'Liderazgo que mueve operaciones.',

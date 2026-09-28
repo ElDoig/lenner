@@ -19,7 +19,9 @@ npm run preview
 
 Los archivos originales `public/assets/lenner-intro.mp4` y `public/assets/lenner-final.png` se conservan sin cambios. El video mide 720 × 1280 y dura 4,01 segundos. El PNG mide 1024 × 1536 y tiene transparencia. El último fotograma del video tiene los brazos abajo: por eso se usa una pausa de 280 ms, una disolvencia de 450 ms y un velo atmosférico junto con la revelación escalonada del nombre.
 
-La calibración de rostro y encuadre está en `.character-image` y `.character-video` en `src/styles/global.css`. La máquina de estados, bloqueo de reproducción y espera máxima están en `src/hooks/useIntro.ts`. La animación se omite si el dispositivo solicita movimiento reducido. Una conexión lenta muestra el retrato y permite saltar la introducción.
+La calibración de rostro y encuadre está en `.character-image` y `.character-video` en `src/styles/global.css`. La máquina de estados vive en `src/hooks/useIntro.ts`: `loading → videoReveal → videoPlaying → transitionToPortrait → portrait`. La carga es negro absoluto, sin texto, marca ni personaje. El video se revela solamente después de `playing` y de presentar un fotograma, con opacidad, blur de 16 px y escala de 1,015 durante 650 ms. El PNG permanece con opacidad cero y visibilidad oculta hasta que el video termina y la imagen está decodificada.
+
+Si autoplay falla, se reintenta al estar preparado o recibir un gesto, sin mostrar el PNG. Tras 7,5 segundos de carga o bloqueo, la salida `unavailable` permite leer el contenido sin personaje. Saltar la introducción o solicitar movimiento reducido también usa esta salida: ninguna de estas rutas muestra prematuramente el retrato. No hay poster, loader ni texto de carga.
 
 ## Diseño y rendimiento
 
